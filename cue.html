@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>StageCommand - Cues</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; box-sizing: border-box; }
+        body { 
+            font-family: sans-serif; 
+            background: #000; 
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .now { 
+            background: #dc3545; 
+            padding: 40px; 
+            text-align: center;
+        }
+        .now-label { font-size: 20px; opacity: 0.8; margin-bottom: 10px; }
+        .now-name { font-size: 48px; font-weight: bold; }
+        .next { 
+            background: #1e3a8a; 
+            padding: 30px; 
+            text-align: center;
+            opacity: 0.9;
+        }
+        .next-label { font-size: 16px; opacity: 0.7; margin-bottom: 5px; }
+        .next-name { font-size: 32px; }
+        .list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .item {
+            padding: 20px;
+            border-bottom: 2px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .item.past { opacity: 0.3; }
+        .item.current { 
+            background: #1e3a5f; 
+            border-left: 6px solid #22c55e;
+        }
+        .item-name { font-size: 24px; }
+        .item-time { font-size: 18px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="now">
+    <div class="now-label">NOW</div>
+    <div class="now-name" id="now">Loading...</div>
+</div>
+
+<div class="next">
+    <div class="next-label">UP NEXT</div>
+    <div class="next-name" id="next">--</div>
+</div>
+
+<div class="list" id="list"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFrDXcHLhosgxbUwHRCuvibc2CR597Kw",
+  authDomain: "stagecommand.firebaseapp.com",
+  databaseURL: "https://stagecommand-default-rtdb.firebaseio.com",
+  projectId: "stagecommand",
+  storageBucket: "stagecommand.firebasestorage.app",
+  messagingSenderId: "508387537732",
+  appId: "1:508387537732:web:7c0d4960aa2961210e87d11",
+  measurementId: "G-44BHPGHMC1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const showRef = firebase.database().ref('tomorrowShow');
+
+showRef.on('value', snap => {
+    const data = snap.val() || {};
+    const current = data.currentSequence || 0;
+    const seqs = data.sequences || [];
+    
+    const now = seqs[current];
+    const next = seqs[current + 1];
+    
+    document.getElementById('now').textContent = now ? now.name : 'SHOW END';
+    document.getElementById('next').textContent = next ? next.name : '--';
+    
+    document.getElementById('list').innerHTML = seqs.map((seq, i) => `
+        <div class="item ${i < current ? 'past' : ''} ${i === current ? 'current' : ''}">
+            <span class="item-name">${i+1}. ${seq.name}</span>
+            <span class="item-time">${seq.duration}min</span>
+        </div>
+    `).join('');
+});
+</script>
+
+</body>
+</html>

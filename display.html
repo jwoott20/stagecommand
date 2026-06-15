@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>StageCommand - Schedule</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            background: #0f172a; 
+            color: #fff;
+            padding: 40px;
+            font-size: 18px;
+        }
+        h1 { color: #60a5fa; margin-bottom: 30px; font-size: 36px; }
+        .sequence { 
+            background: #1e293b; 
+            padding: 20px; 
+            margin: 10px 0; 
+            border-radius: 8px;
+            border-left: 4px solid #334155;
+        }
+        .sequence.active { 
+            border-left-color: #22c55e; 
+            background: #1e3a5f;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .seq-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .seq-name { font-size: 28px; font-weight: bold; }
+        .seq-time { color: #94a3b8; font-size: 20px; }
+        .cues { margin-top: 10px; padding-left: 20px; }
+        .cue { padding: 8px 0; color: #cbd5e1; font-size: 16px; }
+        .current-badge { 
+            background: #22c55e; 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .status { 
+            position: fixed; 
+            top: 20px; 
+            right: 20px; 
+            background: #22c55e; 
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<h1 id="show-name">Loading Show...</h1>
+<div id="schedule">Loading schedule...</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFrDXcHLhosgxbUwHRCuvibc2CR597Kw",
+  authDomain: "stagecommand.firebaseapp.com",
+  databaseURL: "https://stagecommand-default-rtdb.firebaseio.com",
+  projectId: "stagecommand",
+  storageBucket: "stagecommand.firebasestorage.app",
+  messagingSenderId: "508387537732",
+  appId: "1:508387537732:web:7c0d4960aa2961210e87d11",
+  measurementId: "G-44BHPGHMC1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const showRef = firebase.database().ref('tomorrowShow');
+
+showRef.on('value', snap => {
+    const data = snap.val() || {};
+    document.getElementById('show-name').textContent = data.showName || 'Show Schedule';
+    
+    const current = data.currentSequence || 0;
+    const seqs = data.sequences || [];
+    
+    document.getElementById('schedule').innerHTML = seqs.map((seq, i) => `
+        <div class="sequence ${i === current ? 'active' : ''}">
+            <div class="seq-header">
+                <div>
+                    <span class="seq-name">${i+1}. ${seq.name}</span>
+                    ${i === current ? '<span class="current-badge">▶ LIVE</span>' : ''}
+                </div>
+                <span class="seq-time">${seq.duration} min</span>
+            </div>
+            ${seq.cues?.length ? `
+                <div class="cues">
+                    ${seq.cues.map(c => `<div class="cue">• ${c}</div>`).join('')}
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+});
+</script>
+
+</body>
+</html>

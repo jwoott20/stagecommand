@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>StageCommand - Operator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; }
+        body { 
+            font-family: sans-serif; 
+            background: #000; 
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header { 
+            background: #1e3a8a; 
+            padding: 20px; 
+            text-align: center;
+            font-size: 24px;
+        }
+        .current { 
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #0f172a;
+            padding: 40px;
+        }
+        .current h2 { font-size: 18px; color: #60a5fa; margin-bottom: 10px; }
+        .current h1 { font-size: 60px; text-align: center; margin-bottom: 20px; }
+        .timer { font-size: 80px; color: #22c55e; font-family: monospace; }
+        .cues { 
+            background: #1e293b; 
+            padding: 30px;
+            max-height: 25vh;
+            overflow-y: auto;
+        }
+        .cue { padding: 15px; margin: 10px 0; background: #334155; border-radius: 8px; font-size: 24px; cursor: pointer; }
+        .cue.done { opacity: 0.3; text-decoration: line-through; background: #1a472a; }
+        .big-button {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 20px;
+        }
+        .go { background: #22c55e; color: white; }
+        .go:hover { background: #16a34a; }
+        .stop { background: #dc3545; color: white; }
+        .stop:hover { background: #a71d2a; }
+        .nav { display: flex; gap: 20px; justify-content: center; margin-top: 20px; }
+        .standby { background: #f59e0b; color: black; }
+    </style>
+</head>
+<body>
+
+<div class="header" id="show-name">Loading...</div>
+
+<div class="current">
+    <h2>CURRENT SEQUENCE</h2>
+    <h1 id="current-name">--</h1>
+    <div class="timer" id="timer">00:00</div>
+    <div class="nav">
+        <button class="big-button stop" onclick="prevSeq()">◀ PREV</button>
+        <button class="big-button go" onclick="nextSeq()">NEXT ▶</button>
+    </div>
+</div>
+
+<div class="cues" id="cues">
+    <h3 style="margin-bottom: 15px;">CUES (Click when done)</h3>
+    <div id="cue-list">Waiting for show data...</div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFrDXcHLhosgxbUwHRCuvibc2CR597Kw",
+  authDomain: "stagecommand.firebaseapp.com",
+  databaseURL: "https://stagecommand-default-rtdb.firebaseio.com",
+  projectId: "stagecommand",
+  storageBucket: "stagecommand.firebasestorage.app",
+  messagingSenderId: "508387537732",
+  appId: "1:508387537732:web:7c0d4960aa2961210e87d11",
+  measurementId: "G-44BHPGHMC1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const showRef = firebase.database().ref('tomorrowShow');
+
+let showData = {};
+let currentIndex = 0;
+let timerInterval;
+let startTime = null;
+
+showRef.on('value', snap => {
+    showData = snap.val() || {};
+    document.getElementById('show-name').textContent = showData.showName || 'StageCommand';
+    currentIndex = showData.currentSequence || 0;
+    updateDisplay();
+});
+
+function updateDisplay() {
+    const seq = showData.sequences?.[currentIndex];
+    if (!seq) {
+        document.getElementById('current-name').textContent = 'SHOW END';
+        document.getElementById('timer').textContent = '00:00';
+        return;
+    }
+    
+    document.getElementById('current-name').textContent = seq.name;
+    
+    const cueList = document.getElementById('cue-list');
+    if (seq.cues?.length) {
+        cueList.innerHTML = seq.cues.map((cue, i) => 
+            `<div class="cue" onclick="this.classList.toggle('done')" id="cue-${i}">${i+1}. ${cue}</div>`
+        ).join('');
+    } else {
+        cueList.innerHTML = '<div style="opacity: 0.5;">No cues</div>';
+    }
+    
+    // Reset timer
+    clearInterval(timerInterval);
+    startTime = Date.now();
+    const duration = (seq.duration || 5) * 60 * 1000;
+    
+    timerInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = duration - elapsed;
+        const absRemaining = Math.abs(remaining);
+        const mins = Math.floor(absRemaining / 60000);
+        const secs = Math.floor((absRemaining % 60000) / 1000);
+        const sign = remaining < 0 ? '-' : '';
+        document.getElementById('timer').textContent = 
+            `${sign}${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        document.getElementById('timer').style.color = remaining < 0 ? '#dc3545' : '#22c55e';
+    }, 1000);
+}
+
+function nextSeq() {
+    const total = showData.sequences?.length || 0;
+    if (currentIndex < total - 1) {
+        showRef.child('currentSequence').set(currentIndex + 1);
+    }
+}
+
+function prevSeq() {
+    if (currentIndex > 0) {
+        showRef.child('currentSequence').set(currentIndex - 1);
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') nextSeq();
+    if (e.key === 'ArrowLeft') prevSeq();
+});
+</script>
+
+</body>
+</html>

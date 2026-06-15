@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>StageCommand Admin</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #1a1a2e; color: #fff; padding: 20px; }
+        .login-box { max-width: 400px; margin: 100px auto; background: #16213e; padding: 30px; border-radius: 8px; }
+        .hidden { display: none; }
+        input, textarea, button { width: 100%; padding: 10px; margin: 5px 0; }
+        textarea { height: 400px; font-family: monospace; font-size: 14px; }
+        .btn { background: #3b82f6; color: white; border: none; cursor: pointer; font-size: 16px; }
+        .btn:hover { background: #2563eb; }
+        .btn-success { background: #22c55e; }
+        .btn-danger { background: #dc3545; }
+        .success { color: #22c55e; }
+        .views { margin: 20px 0; padding: 20px; background: #0f3460; border-radius: 8px; }
+        .view-link { display: block; margin: 10px 0; color: #60a5fa; word-break: break-all; font-size: 14px; }
+        h1 { color: #e94560; }
+        h3 { color: #60a5fa; margin-top: 20px; }
+        .instruction { background: #1e3a5f; padding: 15px; border-radius: 8px; margin: 10px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen" class="login-box">
+    <h2>🔒 StageCommand Admin</h2>
+    <input type="email" id="email" placeholder="Email" value="admin@stagecommand.local">
+    <input type="password" id="password" placeholder="Password" value="admin123">
+    <button class="btn" onclick="login()">Login</button>
+    <p style="font-size: 12px; color: #888;">Default: admin@stagecommand.local / admin123</p>
+</div>
+
+<div id="admin-panel" class="hidden">
+    <h1>📋 Show Admin</h1>
+    
+    <div class="instruction">
+        <strong>How to use:</strong> Paste your show schedule in the box below, then click "Upload & Publish". 
+        The public pages will update instantly. Use the links below to share with your operators.
+    </div>
+    
+    <div class="views">
+        <h3>🔗 Public Links (Share These):</h3>
+        <div id="public-urls"></div>
+    </div>
+    
+    <h3>📝 Enter Your Show Schedule:</h3>
+    <textarea id="schedule-json" placeholder='{
+  "showName": "Your Show Name",
+  "currentSequence": 0,
+  "sequences": [
+    {
+      "name": "Opening",
+      "duration": 5,
+      "cues": ["Cue 1", "Cue 2"]
+    }
+  ]
+}'></textarea>
+    
+    <button class="btn btn-success" onclick="uploadSchedule()">📤 Upload & Publish</button>
+    <button class="btn" style="background: #666;" onclick="exportSchedule()">📥 Download Backup</button>
+    <p id="status"></p>
+    
+    <button class="btn btn-danger" style="margin-top: 30px;" onclick="logout()">Logout</button>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFrDXcHLhosgxbUwHRCuvibc2CR597Kw",
+  authDomain: "stagecommand.firebaseapp.com",
+  databaseURL: "https://stagecommand-default-rtdb.firebaseio.com",
+  projectId: "stagecommand",
+  storageBucket: "stagecommand.firebasestorage.app",
+  messagingSenderId: "508387537732",
+  appId: "1:508387537732:web:7c0d4960aa2961210e87d11",
+  measurementId: "G-44BHPGHMC1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const showRef = db.ref('tomorrowShow');
+
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        showUrls();
+        loadCurrent();
+    } else {
+        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('admin-panel').classList.add('hidden');
+    }
+});
+
+function login() {
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    auth.signInWithEmailAndPassword(email, password).catch(e => {
+        auth.createUserWithEmailAndPassword(email, password);
+    });
+}
+
+function logout() {
+    auth.signOut();
+}
+
+function showUrls() {
+    const base = window.location.href.replace('admin.html', '');
+    document.getElementById('public-urls').innerHTML = `
+        <strong>Operator View (big buttons):</strong>
+        <a class="view-link" href="${base}operator.html" target="_blank">${base}operator.html</a>
+        
+        <strong>Display View (full schedule):</strong>
+        <a class="view-link" href="${base}display.html" target="_blank">${base}display.html</a>
+        
+        <strong>Cue View (simple):</strong>
+        <a class="view-link" href="${base}cues.html" target="_blank">${base}cues.html</a>
+    `;
+}
+
+function uploadSchedule() {
+    try {
+        const data = JSON.parse(document.getElementById('schedule-json').value);
+        showRef.set(data);
+        document.getElementById('status').innerHTML = '<span class="success">✓ Published! All screens updated.</span>';
+    } catch(e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+function exportSchedule() {
+    showRef.once('value', snap => {
+        const data = snap.val() || {};
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'show-backup.json';
+        a.click();
+    });
+}
+
+function loadCurrent() {
+    showRef.on('value', snap => {
+        const data = snap.val();
+        if (data) {
+            document.getElementById('schedule-json').value = JSON.stringify(data, null, 2);
+        }
+    });
+}
+</script>
+
+</body>
+</html>
