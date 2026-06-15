@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>StageCommand - Audio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #1e3a8a;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 24px;
+        }
+        .current-seq {
+            font-size: 18px;
+            color: #60a5fa;
+        }
+        .main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
+        }
+        .panel {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .panel h2 {
+            color: #e94560;
+            margin-bottom: 15px;
+            font-size: 18px;
+            text-transform: uppercase;
+        }
+        .mic-channel {
+            background: #0f172a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border-left: 4px solid #22c55e;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mic-channel.muted {
+            border-left-color: #dc3545;
+            opacity: 0.6;
+        }
+        .mic-name {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .mic-assignment {
+            color: #888;
+            font-size: 14px;
+        }
+        .mic-status {
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .mic-status.live {
+            background: #dc3545;
+            color: white;
+            animation: blink 1s infinite;
+        }
+        .mic-status.standby {
+            background: #f59e0b;
+            color: #000;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .cue-list {
+            list-style: none;
+        }
+        .cue-item {
+            padding: 15px;
+            margin: 8px 0;
+            background: #0f172a;
+            border-radius: 6px;
+            border-left: 3px solid #e94560;
+        }
+        .cue-time {
+            color: #e94560;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .cue-action {
+            margin-top: 5px;
+            font-size: 18px;
+        }
+        .notes {
+            background: #1e3a5f;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+        .empty {
+            color: #666;
+            font-style: italic;
+            text-align: center;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🎧 Audio Control</h1>
+    <div class="current-seq" id="current-seq">Loading...</div>
+</div>
+
+<div class="main">
+    <div class="panel">
+        <h2>Microphone Assignments</h2>
+        <div id="mics">
+            <div class="empty">No audio inputs configured</div>
+        </div>
+        
+        <h2 style="margin-top: 30px;">Audio Notes</h2>
+        <div class="notes" id="audio-notes">
+            No notes
+        </div>
+    </div>
+    
+    <div class="panel">
+        <h2>Audio Cues</h2>
+        <ul class="cue-list" id="cues">
+            <div class="empty">No cues</div>
+        </ul>
+    </div>
+</div>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFrDXcHLhosgxbUwHRCuvibc2CR597Kw",
+  authDomain: "stagecommand.firebaseapp.com",
+  databaseURL: "https://stagecommand-default-rtdb.firebaseio.com",
+  projectId: "stagecommand",
+  storageBucket: "stagecommand.firebasestorage.app",
+  messagingSenderId: "508387537732",
+  appId: "1:508387537732:web:7c0d4960aa2961210e87d11",
+  measurementId: "G-44BHPGHMC1"
+};
+
+firebase.initializeApp(firebaseConfig);
+const showRef = firebase.database().ref('show');
+
+showRef.on('value', snap => {
+    const data = snap.val() || {};
+    const sequences = Object.values(data.sequences || {});
+    const equipment = data.equipment || {};
+    const currentIndex = data.currentSequence || 0;
+    const current = sequences[currentIndex];
+    
+    // Current sequence name
+    document.getElementById('current-seq').textContent = current 
+        ? `Current: ${current.name}` 
+        : 'Show End';
+    
+    // Audio inputs (mics)
+    const micsDiv = document.getElementById('mics');
+    const audioInputs = Object.entries(equipment).filter(([id, eq]) => eq.category === 'audio_inputs');
+    
+    if (audioInputs.length === 0) {
+        micsDiv.innerHTML = '<div class="empty">No microphones configured</div>';
+    } else {
+        micsDiv.innerHTML = audioInputs.map(([id, eq]) => {
+            // Check if assigned to current sequence
+            const assigned = current?.equipment?.[id];
+            const assignedPerson = assigned ? Object.entries(current.people || {}).find(([pid, p]) => p.role?.includes('speaker') || p.role?.includes('mic')) : null;
+            
+            return `
+                <div class="mic-channel ${assigned ? '' : 'muted'}">
+                    <div>
+                        <div class="mic-name">${eq.name}</div>
+                        <div class="mic-assignment">${eq.channel || 'No channel'} | ${assigned ? 'ASSIGNED' : 'STANDBY'}</div>
+                    </div>
+                    <div class="mic-status ${assigned ? 'live' : 'standby'}">
+                        ${assigned ? 'LIVE' : 'STBY'}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    // Audio notes
+    document.getElementById('audio-notes').textContent = current?.audioNotes || 'No audio notes for this sequence';
+    
+    // Audio cues
+    const cuesDiv = document.getElementById('cues');
+    if (current && current.cues) {
+        const cues = Object.values(current.cues).filter(c => 
+            c.action?.toLowerCase().includes('mic') || 
+            c.action?.toLowerCase().includes('audio') ||
+            c.action?.toLowerCase().includes('music') ||
+            c.action?.toLowerCase().includes('sound')
+        );
+        
+        cuesDiv.innerHTML = cues.length === 0 
+            ? '<div class="empty">No audio-specific cues</div>'
+            : cues.map(c => `
+                <li class="cue-item">
+                    <div class="cue-time">${c.time || '0:00'}</div>
+                    <div class="cue-action">${c.action}</div>
+                </li>
+            `).join('');
+    } else {
+        cuesDiv.innerHTML = '<div class="empty">No cues</div>';
+    }
+});
+</script>
+
+</body>
+</html>

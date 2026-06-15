@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StageCommand Writer</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            line-height: 1.6;
+        }
+        .header {
+            background: #16213e;
+            padding: 20px;
+            border-bottom: 3px solid #0f3460;
+        }
+        .header h1 {
+            color: #e94560;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .panel {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #0f3460;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #0f3460;
+        }
+        .panel h2 { color: #e94560; font-size: 1.3em; }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #e94560; color: white; }
+        .btn-primary:hover { background: #ff6b6b; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-success:hover { background: #34ce57; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #0f3460; color: #eee; }
+        .list {
+            list-style: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .list-item {
+            background: #0f3460;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .list-item:hover { background: #1a4a7a; }
+        .list-item.active { background: #e94560; }
+        .item-name { font-weight: 500; }
+        .item-type {
+            font-size: 11px;
+            color: #aaa;
+            background: #1a1a2e;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #16213e;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            border: 2px solid #e94560;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #aaa;
+            font-size: 13px;
+            text-transform: uppercase;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 14px;
+        }
+        .equipment-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .equipment-category {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .equipment-category h4 {
+            color: #e94560;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .equipment-list { font-size: 12px; color: #aaa; }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+        .detail-view {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #1a1a2e;
+            z-index: 2000;
+            overflow-y: auto;
+        }
+        .detail-view.active { display: block; }
+        .detail-header {
+            background: #16213e;
+            padding: 20px 30px;
+            border-bottom: 2px solid #0f3460;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .detail-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        .section {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid #0f3460;
+        }
+        .section h3 {
+            font-size: 14px;
+            text-transform: uppercase;
+            color: #e94560;
+            margin-bottom: 15px;
+        }
+        .assignment-item {
+            background: #0f3460;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .cue-item {
+            border-left: 3px solid #e94560;
+            padding: 10px 15px;
+            background: #0f3460;
+            margin-bottom: 8px;
+            border-radius: 0 6px 6px 0;
+        }
+        .login-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #1a1a2e;
+        }
+        .login-box {
+            background: #16213e;
+            padding: 40px;
+            border-radius: 8px;
+            border: 2px solid #e94560;
+            width: 90%;
+            max-width: 400px;
+        }
+        .hidden { display: none !important; }
+        @media (max-width: 900px) {
+            .detail-grid { grid-template-columns: 1fr; }
+            .grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="login-screen">
+    <div class="login-box">
+        <h1 style="color: #e94560; margin-bottom: 20px; text-align: center;">🎭 StageCommand</h1>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="login-email" value="admin@stagecommand.local">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password" value="admin123">
+        </div>
+        <button class="btn btn-primary" style="width: 100%;" onclick="login()">Login</button>
+        <p style="text-align: center; margin-top: 15px; color: #666; font-size: 12px;">
+            Default: admin@stagecommand.local / admin123
+        </p>
+    </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app" class="hidden">
+    <div class="header">
+        <div class="container">
+            <h1>🎭 StageCommand Writer</h1>
+            <p style="color: #aaa; font-size: 14px;">
+                <span id="seq-count">0</span> sequences | 
+                <span id="eq-count">0</span> equipment | 
+                <span id="people-count">0</span> people
+            </p>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="grid">
+            <!-- Sequences Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>📋 Sequences</h2>
+                    <button class="btn btn-primary" onclick="showModal('sequence')">+ Add</button>
+                </div>
+                <div id="sequences-list" class="list">
+                    <div class="empty-state">No sequences yet</div>
+                </div>
+            </div>
+            
+            <!-- Equipment Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>🔧 Equipment</h2>
+                    <button class="btn btn-success" onclick="showModal('equipment')">+ Add</button>
+                </div>
+                <div id="equipment-summary" class="equipment-grid">
+                    <div class="equipment-category">
+                        <h4>💡 Lighting</h4>
+                        <div class="equipment-list" id="eq-lighting">None</div>
+                    </div>
+                    <div class="equipment-category">
+                        <h4>🎤 Audio Inputs</h4>
+                        <div class="equipment-list" id="eq-audio-inputs">None</div>
+                    </div>
+                    <div class="equipment-category">
+                        <h4>🔊 Audio Outputs</h4>
+                        <div class="equipment-list" id="eq-audio-outputs">None</div>
+                    </div>
+                    <div class="equipment-category">
+                        <h4>🎭 Stage Props</h4>
+                        <div class="equipment-list" id="eq-stage-props">None</div>
+                    </div>
+                    <div class="equipment-category">
+                        <h4>📹 Video Inputs</h4>
+                        <div class="equipment-list" id="eq-video-inputs">None</div>
+                    </div>
+                    <div class="equipment-category">
+                        <h4>📺 Video Outputs</h4>
+                        <div class="equipment-list" id="eq-video-outputs">None</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- People Panel -->
+            <div class="panel" style="grid-column: 1 / -1;">
+                <div class="panel-header">
+                    <h2>👥 People</h2>
+                    <button class="btn btn-success" onclick="showModal('person')">+ Add</button>
+                </div>
+                <div id="people-list" class="list">
+                    <div class="empty-state">No people yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SEQUENCE DETAIL VIEW -->
+<div id="detail-view" class="detail-view">
+    <div class="detail-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <button class="btn btn-secondary" onclick="closeDetail()">← Back</button>
+                <h1 id="detail-title" style="margin-top: 10px;">Sequence Detail</h1>
+            </div>
+            <button class="btn btn-primary" onclick="saveSequenceDetail()">💾 Save</button>
+        </div>
+    </div>
+    <div class="detail-content">
+        <div class="detail-grid">
+            <div class="section">
+                <h3>Physical Setup</h3>
+                <div class="form-group">
+                    <label>Setup Notes</label>
+                    <textarea id="detail-setup-notes" rows="6"></textarea>
+                </div>
+                <h4 style="margin: 15px 0 10px; font-size: 12px; color: #aaa;">Equipment</h4>
+                <div id="detail-equipment"></div>
+                <button class="btn btn-success" style="margin-top: 10px;" onclick="addEquipmentToSequence()">+ Assign Equipment</button>
+            </div>
+            
+            <div class="section">
+                <h3>People</h3>
+                <div id="detail-people"></div>
+                <button class="btn btn-success" style="margin-top: 10px;" onclick="addPersonToSequence()">+ Assign Person</button>
+                
+                <h4 style="margin: 20px 0 10px; font-size: 12px; color: #aaa;">Roles</h4>
+                <div id="detail-roles"></div>
+            </div>
+            
+            <div class="section">
+                <h3>I/O & Cues</h3>
+                <div class="form-group">
+                    <label>Audio Notes</label>
+                    <textarea id="detail-audio-notes" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Video Notes</label>
+                    <textarea id="detail-video-notes" rows="3"></textarea>
+                </div>
+                <h4 style="margin: 15px 0 10px; font-size: 12px; color: #aaa;">Cues</h4>
+                <div id="detail-cues"></div>
+                <button class="btn btn-success" style="margin-top: 10px;" onclick="addCue()">+ Add Cue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div id="modal" class="modal-overlay" onclick="if(event.target === this) closeModal()">
+    <div class="modal">
+        <h2 id="modal-title" style="margin-bottom: 20px;">Add Item</h2>
+        <div id="modal-body"></div>
+        <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveModal()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// FIREBASE CONFIG - REPLACE WITH YOURS
+// ==========================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAmFrDXcHLhosgxbUwHRCuvibc2CR597Kw",
+  authDomain: "stagecommand.firebaseapp.com",
+  databaseURL: "https://stagecommand-default-rtdb.firebaseio.com",
+  projectId: "stagecommand",
+  storageBucket: "stagecommand.firebasestorage.app",
+  messagingSenderId: "508387537732",
+  appId: "1:508387537732:web:7c0d4960aa2961210e87d11",
+  measurementId: "G-44BHPGHMC1"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+const showRef = db.ref('show');
+
+// State
+let currentData = { sequences: {}, equipment: {}, people: {} };
+let currentSequenceId = null;
+let modalType = null;
+
+// Auth
+auth.onAuthStateChanged(user => {
+    if (user) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        initData();
+    }
+});
+
+function login() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    auth.signInWithEmailAndPassword(email, password).catch(() => {
+        auth.createUserWithEmailAndPassword(email, password);
+    });
+}
+
+// Data
+function initData() {
+    showRef.on('value', snap => {
+        const data = snap.val();
+        if (data) {
+            currentData = data;
+        } else {
+            // Initialize empty structure
+            showRef.set({
+                sequences: {},
+                equipment: {},
+                people: {}
+            });
+        }
+        updateUI();
+    });
+}
+
+function updateUI() {
+    // Counts
+    document.getElementById('seq-count').textContent = Object.keys(currentData.sequences || {}).length;
+    document.getElementById('eq-count').textContent = Object.keys(currentData.equipment || {}).length;
+    document.getElementById('people-count').textContent = Object.keys(currentData.people || {}).length;
+    
+    // Sequences
+    const seqList = document.getElementById('sequences-list');
+    const sequences = Object.entries(currentData.sequences || {});
+    if (sequences.length === 0) {
+        seqList.innerHTML = '<div class="empty-state">No sequences yet</div>';
+    } else {
+        seqList.innerHTML = sequences.map(([id, seq]) => `
+            <div class="list-item ${currentSequenceId === id ? 'active' : ''}" onclick="openSequence('${id}')">
+                <span class="item-name">${seq.name}</span>
+                <span class="item-type">${seq.duration || 5}m</span>
+            </div>
+        `).join('');
+    }
+    
+    // Equipment by category
+    const categories = {
+        'lighting': 'eq-lighting',
+        'audio_inputs': 'eq-audio-inputs',
+        'audio_outputs': 'eq-audio-outputs',
+        'stage_props': 'eq-stage-props',
+        'video_inputs': 'eq-video-inputs',
+        'video_outputs': 'eq-video-outputs'
+    };
+    
+    Object.entries(categories).forEach(([cat, id]) => {
+        const items = Object.values(currentData.equipment || {}).filter(e => e.category === cat);
+        document.getElementById(id).textContent = items.length > 0 
+            ? items.map(e => e.name).join(', ') 
+            : 'None';
+    });
+    
+    // People
+    const peopleList = document.getElementById('people-list');
+    const people = Object.entries(currentData.people || {});
+    if (people.length === 0) {
+        peopleList.innerHTML = '<div class="empty-state">No people yet</div>';
+    } else {
+        peopleList.innerHTML = people.map(([id, p]) => `
+            <div class="list-item">
+                <div>
+                    <div class="item-name">${p.name}</div>
+                    <div style="font-size: 12px; color: #888;">${p.role || ''}</div>
+                </div>
+                <button class="btn btn-danger" onclick="deletePerson('${id}')">×</button>
+            </div>
+        `).join('');
+    }
+}
+
+// Modals
+function showModal(type) {
+    modalType = type;
+    document.getElementById('modal').classList.add('active');
+    const body = document.getElementById('modal-body');
+    
+    if (type === 'sequence') {
+        document.getElementById('modal-title').textContent = 'Add Sequence';
+        body.innerHTML = `
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="modal-name" placeholder="Opening Processional">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="modal-desc" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Duration (minutes)</label>
+                <input type="number" id="modal-duration" value="5">
+            </div>
+        `;
+    } else if (type === 'equipment') {
+        document.getElementById('modal-title').textContent = 'Add Equipment';
+        body.innerHTML = `
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="modal-name" placeholder="Spotlight 1">
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="modal-category">
+                    <option value="lighting">💡 Lighting</option>
+                    <option value="audio_inputs">🎤 Audio Input</option>
+                    <option value="audio_outputs">🔊 Audio Output</option>
+                    <option value="stage_props">🎭 Stage Prop</option>
+                    <option value="video_inputs">📹 Video Input</option>
+                    <option value="video_outputs">📺 Video Output</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Channel/ID</label>
+                <input type="text" id="modal-channel" placeholder="DMX 1, Mic 2, etc.">
+            </div>
+        `;
+    } else if (type === 'person') {
+        document.getElementById('modal-title').textContent = 'Add Person';
+        body.innerHTML = `
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="modal-name" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <input type="text" id="modal-role" placeholder="Student Speaker">
+            </div>
+        `;
+    }
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+    modalType = null;
+}
+
+function saveModal() {
+    const id = Date.now().toString();
+    const name = document.getElementById('modal-name')?.value?.trim();
+    if (!name) return;
+    
+    if (modalType === 'sequence') {
+        showRef.child('sequences').child(id).set({
+            name,
+            description: document.getElementById('modal-desc')?.value || '',
+            duration: parseInt(document.getElementById('modal-duration')?.value) || 5,
+            setupNotes: '',
+            audioNotes: '',
+            videoNotes: '',
+            equipment: {},
+            people: {},
+            cues: {}
+        });
+    } else if (modalType === 'equipment') {
+        showRef.child('equipment').child(id).set({
+            name,
+            category: document.getElementById('modal-category')?.value || 'lighting',
+            channel: document.getElementById('modal-channel')?.value || ''
+        });
+    } else if (modalType === 'person') {
+        showRef.child('people').child(id).set({
+            name,
+            role: document.getElementById('modal-role')?.value || ''
+        });
+    }
+    
+    closeModal();
+}
+
+function deletePerson(id) {
+    showRef.child('people').child(id).remove();
+}
+
+// Sequence Detail
+function openSequence(id) {
+    currentSequenceId = id;
+    const seq = currentData.sequences[id];
+    if (!seq) return;
+    
+    document.getElementById('detail-title').textContent = seq.name;
+    document.getElementById('detail-setup-notes').value = seq.setupNotes || '';
+    document.getElementById('detail-audio-notes').value = seq.audioNotes || '';
+    document.getElementById('detail-video-notes').value = seq.videoNotes || '';
+    
+    // Equipment
+    const eqDiv = document.getElementById('detail-equipment');
+    const eqList = Object.entries(seq.equipment || {});
+    eqDiv.innerHTML = eqList.length === 0 
+        ? '<div class="empty-state">No equipment assigned</div>'
+        : eqList.map(([eqId, data]) => {
+            const eq = currentData.equipment[eqId];
+            return eq ? `<div class="assignment-item">
+                <span>${eq.name}</span>
+                <button class="btn btn-danger btn-sm" onclick="removeEquipment('${eqId}')">×</button>
+            </div>` : '';
+        }).join('');
+    
+    // People
+    const peopleDiv = document.getElementById('detail-people');
+    const peopleList = Object.entries(seq.people || {});
+    peopleDiv.innerHTML = peopleList.length === 0
+        ? '<div class="empty-state">No people assigned</div>'
+        : peopleList.map(([personId, data]) => {
+            const person = currentData.people[personId];
+            return person ? `<div class="assignment-item">
+                <div>
+                    <div>${person.name}</div>
+                    <small style="color: #888">${data.role || person.role || ''}</small>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="removePerson('${personId}')">×</button>
+            </div>` : '';
+        }).join('');
+    
+    // Roles
+    const roles = {};
+    peopleList.forEach(([pid, data]) => {
+        const role = data.role || 'Unassigned';
+        if (!roles[role]) roles[role] = [];
+        const person = currentData.people[pid];
+        if (person) roles[role].push(person.name);
+    });
+    document.getElementById('detail-roles').innerHTML = Object.entries(roles).map(([role, names]) => `
+        <div class="assignment-item">
+            <strong>${role}:</strong> ${names.join(', ')}
+        </div>
+    `).join('') || '<div class="empty-state">No roles</div>';
+    
+    // Cues
+    const cuesDiv = document.getElementById('detail-cues');
+    const cues = Object.entries(seq.cues || {}).sort((a, b) => (a[1].time || '').localeCompare(b[1].time || ''));
+    cuesDiv.innerHTML = cues.length === 0
+        ? '<div class="empty-state">No cues</div>'
+        : cues.map(([cueId, cue]) => `
+            <div class="cue-item">
+                <div style="color: #e94560; font-weight: bold;">${cue.time || '0:00'}</div>
+                <div>${cue.action || ''}</div>
+            </div>
+        `).join('');
+    
+    document.getElementById('detail-view').classList.add('active');
+    updateUI();
+}
+
+function closeDetail() {
+    document.getElementById('detail-view').classList.remove('active');
+    currentSequenceId = null;
+    updateUI();
+}
+
+function saveSequenceDetail() {
+    if (!currentSequenceId) return;
+    showRef.child('sequences').child(currentSequenceId).update({
+        setupNotes: document.getElementById('detail-setup-notes').value,
+        audioNotes: document.getElementById('detail-audio-notes').value,
+        videoNotes: document.getElementById('detail-video-notes').value
+    });
+    alert('Saved!');
+}
+
+function addEquipmentToSequence() {
+    const available = Object.keys(currentData.equipment || {}).filter(id => 
+        !currentData.sequences[currentSequenceId]?.equipment?.[id]
+    );
+    if (available.length === 0) return alert('No available equipment');
+    
+    const id = prompt('Enter equipment ID:\n' + available.map(id => `${id}: ${currentData.equipment[id].name}`).join('\n'));
+    if (id && currentData.equipment[id]) {
+        showRef.child('sequences').child(currentSequenceId).child('equipment').child(id).set({ assigned: true });
+        openSequence(currentSequenceId);
+    }
+}
+
+function removeEquipment(id) {
+    showRef.child('sequences').child(currentSequenceId).child('equipment').child(id).remove();
+    openSequence(currentSequenceId);
+}
+
+function addPersonToSequence() {
+    const available = Object.keys(currentData.people || {}).filter(id => 
+        !currentData.sequences[currentSequenceId]?.people?.[id]
+    );
+    if (available.length === 0) return alert('No available people');
+    
+    const id = prompt('Enter person ID:\n' + available.map(id => `${id}: ${currentData.people[id].name}`).join('\n'));
+    if (id && currentData.people[id]) {
+        const role = prompt('Role in this sequence:', currentData.people[id].role || '');
+        showRef.child('sequences').child(currentSequenceId).child('people').child(id).set({ role: role || '' });
+        openSequence(currentSequenceId);
+    }
+}
+
+function removePerson(id) {
+    showRef.child('sequences').child(currentSequenceId).child('people').child(id).remove();
+    openSequence(currentSequenceId);
+}
+
+function addCue() {
+    const time = prompt('Cue time (e.g., 0:30):');
+    if (!time) return;
+    const action = prompt('Cue action:');
+    if (!action) return;
+    
+    const cueId = Date.now().toString();
+    showRef.child('sequences').child(currentSequenceId).child('cues').child(cueId).set({
+        time, action
+    });
+    openSequence(currentSequenceId);
+}
+</script>
+
+</body>
+</html>
